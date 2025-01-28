@@ -9,6 +9,7 @@ tgcrypto==1.2.2
 asyncio
 python-dotenv
 lexica-api
+genai
 deep-translator
 pycgi
 apscheduler
