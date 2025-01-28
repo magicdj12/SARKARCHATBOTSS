@@ -1,8 +1,12 @@
 import asyncio
 import logging
 import random
-from pyrogram.enums import ParseMode
-from nexichat import nexichat
+import time
+import psutil
+import config
+from nexichat import _boot_
+from nexichat import get_readable_time
+from nexichat import nexichat, mongo
 from datetime import datetime
 from pymongo import MongoClient
 from pyrogram.enums import ChatType
@@ -24,6 +28,7 @@ from nexichat.modules.helpers import (
     SOURCE_READ,
 )
 
+GSTART = """**ʜᴇʏ ᴅᴇᴀʀ {}**\n\n**ᴛʜᴀɴᴋs ғᴏʀ sᴛᴀʀᴛ ᴍᴇ ɪɴ ɢʀᴏᴜᴘ ʏᴏᴜ ᴄᴀɴ ᴄʜᴀɴɢᴇ ʟᴀɴɢᴜᴀɢᴇ ʙʏ ᴄʟɪᴄᴋ ᴏɴ ɢɪᴠᴇɴ ʙᴇʟᴏᴡ ʙᴜᴛᴛᴏɴs.**\n**ᴄʟɪᴄᴋ ᴀɴᴅ sᴇʟᴇᴄᴛ ʏᴏᴜʀ ғᴀᴠᴏᴜʀɪᴛᴇ ʟᴀɴɢᴜᴀɢᴇ ᴛᴏ sᴇᴛ ᴄʜᴀᴛ ʟᴀɴɢᴜᴀɢᴇ ғᴏʀ ʙᴏᴛ ʀᴇᴘʟʏ.**\n\n**ᴛʜᴀɴᴋ ʏᴏᴜ ᴘʟᴇᴀsᴇ ᴇɴɪᴏʏ.**"""
 STICKER = [
     "CAACAgUAAx0CYlaJawABBy4vZaieO6T-Ayg3mD-JP-f0yxJngIkAAv0JAALVS_FWQY7kbQSaI-geBA",
     "CAACAgUAAx0CYlaJawABBy4rZaid77Tf70SV_CfjmbMgdJyVD8sAApwLAALGXCFXmCx8ZC5nlfQeBA",
@@ -64,156 +69,250 @@ IMG = [
 
 
 
-chatdb = MongoClient(MONGO_URL)
-status_db = chatdb["ChatBotStatusDb"]["StatusCollection"]
+from nexichat import db
+
+chatai = db.Word.WordDb
+lang_db = db.ChatLangDb.LangCollection
+status_db = db.ChatBotStatusDb.StatusCollection
+
+
+async def bot_sys_stats():
+    bot_uptime = int(time.time() - _boot_)
+    cpu = psutil.cpu_percent(interval=0.5)
+    mem = psutil.virtual_memory().percent
+    disk = psutil.disk_usage("/").percent
+    UP = f"{get_readable_time((bot_uptime))}"
+    CPU = f"{cpu}%"
+    RAM = f"{mem}%"
+    DISK = f"{disk}%"
+    return UP, CPU, RAM, DISK
+    
 
 async def set_default_status(chat_id):
     try:
         if not await status_db.find_one({"chat_id": chat_id}):
             await status_db.insert_one({"chat_id": chat_id, "status": "enabled"})
     except Exception as e:
-        print(f"خطا در تنظیم وضعیت پیش‌فرض برای چت {chat_id}: {e}")
+        print(f"Error setting default status for chat {chat_id}: {e}")
+
 
 @nexichat.on_message(filters.new_chat_members)
-async def welcomejej(client, message: Message):
+async def خوش_آمدگویی(client, message: Message):
+    چت = message.chat
     await add_served_chat(message.chat.id)
     await set_default_status(message.chat.id)
-    users = len(await get_served_users())
-    chats = len(await get_served_chats())
+    تعداد_کاربران = len(await get_served_users())
+    تعداد_چت‌ها = len(await get_served_chats())
     try:
-        for member in message.new_chat_members:
-            if member.id == nexichat.id:
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(f"انتخاب زبان", callback_data="choose_lang")]])    
-                await message.reply_photo(photo=random.choice(IMG), caption=START.format(nexichat.mention or "غیرقابل منشن", users, chats), reply_markup=reply_markup)
-                chat = message.chat   
+        for عضو in message.new_chat_members:
+            if عضو.id == nexichat.id:
                 try:
-                    invitelink = await nexichat.export_chat_invite_link(message.chat.id)
-                    link = f"[دریافت لینک]({invitelink})"
+                    دکمه‌ها = InlineKeyboardMarkup([[InlineKeyboardButton("انتخاب زبان", callback_data="choose_lang")]])    
+                    await message.reply_text(
+                        text="**ممنون که من رو به این گروه اضافه کردید.**\n\n**لطفاً زبان ربات را برای این گروه با دستور ☞ /lang انتخاب کنید**",
+                        reply_markup=دکمه‌ها
+                    )
+                except Exception as خطا:
+                    print(f"{خطا}")
+                    pass
+                try:
+                    لینک_دعوت = await nexichat.export_chat_invite_link(message.chat.id)
+                    لینک = f"[دریافت لینک]({لینک_دعوت})"
                 except ChatAdminRequired:
-                    link = "بدون لینک"
+                    لینک = "بدون لینک"
                     
                 try:
-                    groups_photo = await nexichat.download_media(
-                        chat.photo.big_file_id, file_name=f"chatpp{chat.id}.png"
+                    عکس_گروه = await nexichat.download_media(
+                        چت.photo.big_file_id, file_name=f"chatpp{چت.id}.png"
                     )
-                    chat_photo = (
-                        groups_photo if groups_photo else "https://envs.sh/IL_.jpg"
-                    )
+                    عکس_چت = عکس_گروه if عکس_گروه else "https://envs.sh/IL_.jpg"
                 except AttributeError:
-                    chat_photo = "https://envs.sh/IL_.jpg"
-                
-                count = await nexichat.get_chat_members_count(chat.id)
-                chats = len(await get_served_chats())
-                username = chat.username if chat.username else "گروه خصوصی"
-                msg = (
-                    f"**📝 ربات به یک #گروه_جدید اضافه شد**\n\n"
-                    f"**📌نام گروه:** {chat.title}\n"
-                    f"**🍂شناسه گروه:** `{chat.id}`\n"
-                    f"**🔐نام کاربری گروه:** @{username}\n"
-                    f"**🖇️لینک گروه:** {link}\n"
-                    f"**📈تعداد اعضا:** {count}\n"
+                    عکس_چت = "https://envs.sh/IL_.jpg"
+                except Exception as خطا:
+                    pass
+
+                تعداد_اعضا = await nexichat.get_chat_members_count(چت.id)
+                تعداد_چت‌ها = len(await get_served_chats())
+                نام_کاربری = چت.username if چت.username else "گروه خصوصی"
+                پیام = (
+                    f"**📝ربات موزیک به یک #گروه_جدید اضافه شد**\n\n"
+                    f"**📌نام گروه:** {چت.title}\n"
+                    f"**🍂شناسه گروه:** `{چت.id}`\n"
+                    f"**🔐نام کاربری گروه:** @{نام_کاربری}\n"
+                    f"**🖇️لینک گروه:** {لینک}\n"
+                    f"**📈تعداد اعضای گروه:** {تعداد_اعضا}\n"
                     f"**🤔اضافه شده توسط:** {message.from_user.mention}\n\n"
-                    f"**تعداد کل گروه‌ها:** {chats}"
+                    f"**تعداد کل چت‌ها:** {تعداد_چت‌ها}"
                 )
 
                 try:
-                    owner_username = True
-                    
-                    if owner_username:
+                    مالک = config.OWNER_ID
+                    if مالک:
                         await nexichat.send_photo(
                             int(OWNER_ID),
-                            photo=chat_photo,
-                            caption=msg,
-                            reply_markup=InlineKeyboardMarkup(
-                                [
-                                    [
-                                        InlineKeyboardButton(
-                                            f"{message.from_user.first_name}",
-                                            user_id=message.from_user.id)]]))
-                    else:
-                        await nexichat.send_photo(
-                            int(OWNER_ID),
-                            photo=chat_photo,
-                            caption=msg,
-                            reply_markup=InlineKeyboardMarkup(
-                                [
-                                    [
-                                        InlineKeyboardButton(
-                                            f"{message.from_user.first_name}",
-                                            user_id=message.from_user.id)]]))
-                except Exception as e:
-                    logging.info(f"Error fetching owner username: {e}")
+                            photo=عکس_چت,
+                            caption=پیام,
+                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(f"{message.from_user.first_name}", user_id=message.from_user.id)]])
+                        )
+                except Exception as خطا:
+                    print("لطفاً شناسه مالک صحیح را برای ارسال گزارش‌ها وارد کنید")
                     await nexichat.send_photo(
                         int(OWNER_ID),
-                        photo=chat_photo,
-                        caption=msg,
-                        reply_markup=InlineKeyboardMarkup(
-                            [
-                                [
-                                    InlineKeyboardButton(
-                                        f"{message.from_user.first_name}",
-                                        user_id=message.from_user.id)]]))
+                        photo=عکس_چت,
+                        caption=پیام,
+                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(f"{message.from_user.first_name}", user_id=message.from_user.id)]])
+                    )
+    except Exception as خطا:
+        print(f"خطا: {خطا}")
 
-    except Exception as e:
-        logging.info(f"Error: {e}")
+@nexichat.on_cmd(["ls"])
+async def لیست_فایل‌ها(_, m: Message):
+    "نمایش تمام فایل‌ها و پوشه‌ها."
+
+    مسیر_ورودی = "".join(m.text.split(maxsplit=1)[1:])
+    مسیر = مسیر_ورودی or os.getcwd()
+    if not os.path.exists(مسیر):
+        await m.reply_text(
+            f"هیچ پوشه یا فایلی با نام `{مسیر_ورودی}` وجود ندارد. لطفا دوباره بررسی کنید."
+        )
+        return
+
+    مسیر = Path(مسیر_ورودی) if مسیر_ورودی else os.getcwd()
+    if os.path.isdir(مسیر):
+        if مسیر_ورودی:
+            پیام = f"پوشه‌ها و فایل‌های موجود در `{مسیر}`:\n"
+        else:
+            پیام = "پوشه‌ها و فایل‌های موجود در مسیر فعلی:\n"
+            
+        لیست_محتوا = os.listdir(مسیر)
+        فایل‌ها = ""
+        پوشه‌ها = ""
+        
+        for محتوا in sorted(لیست_محتوا):
+            مسیر_کامل = os.path.join(مسیر, محتوا)
+            if not os.path.isdir(مسیر_کامل):
+                حجم = os.stat(مسیر_کامل).st_size
+                if str(محتوا).endswith((".mp3", ".flac", ".wav", ".m4a")):
+                    فایل‌ها += f"🎵`{محتوا}`\n"
+                elif str(محتوا).endswith((".opus")):
+                    فایل‌ها += f"🎙`{محتوا}`\n"
+                elif str(محتوا).endswith((".mkv", ".mp4", ".webm", ".avi", ".mov", ".flv")):
+                    فایل‌ها += f"🎞`{محتوا}`\n"
+                elif str(محتوا).endswith((".zip", ".tar", ".tar.gz", ".rar")):
+                    فایل‌ها += f"🗜`{محتوا}`\n"
+                elif str(محتوا).endswith((".jpg", ".jpeg", ".png", ".gif", ".bmp", ".ico")):
+                    فایل‌ها += f"🖼`{محتوا}`\n"
+                else:
+                    فایل‌ها += f"📄`{محتوا}`\n"
+            else:
+                پوشه‌ها += f"📁`{محتوا}`\n"
+                
+        پیام = پیام + پوشه‌ها + فایل‌ها if فایل‌ها or پوشه‌ها else f"{پیام}__مسیر خالی است__"
+    else:
+        حجم = os.stat(مسیر).st_size
+        پیام = "جزئیات فایل انتخاب شده:\n"
+        if str(مسیر).endswith((".mp3", ".flac", ".wav", ".m4a")):
+            نوع = "🎵"
+        elif str(مسیر).endswith((".opus")):
+            نوع = "🎙"
+        elif str(مسیر).endswith((".mkv", ".mp4", ".webm", ".avi", ".mov", ".flv")):
+            نوع = "🎞"
+        elif str(مسیر).endswith((".zip", ".tar", ".tar.gz", ".rar")):
+            نوع = "🗜"
+        elif str(مسیر).endswith((".jpg", ".jpeg", ".png", ".gif", ".bmp", ".ico")):
+            نوع = "🖼"
+        else:
+            نوع = "📄"
+            
+        زمان_تغییر = time.ctime(os.path.getmtime(مسیر))
+        زمان_دسترسی = time.ctime(os.path.getatime(مسیر))
+        
+        پیام += f"**مسیر:** `{مسیر}`\n"
+        پیام += f"**نوع:** `{نوع}`\n"
+        پیام += f"**حجم:** `{humanbytes(حجم)}`\n"
+        پیام += f"**آخرین زمان تغییر:** `{زمان_تغییر}`\n"
+        پیام += f"**آخرین زمان دسترسی:** `{زمان_دسترسی}`"
+
+    if len(پیام) > 4096:
+        with io.BytesIO(str.encode(پیام)) as خروجی:
+            خروجی.name = "ls.txt"
+            await m.reply_document(
+                خروجی,
+                caption=مسیر,
+            )
+    else:
+        await m.reply_text(پیام)
 
 
-@nexichat.on_cmd(["start", "aistart"])
-async def start(_, m: Message):
-    users = len(await get_served_users())
-    chats = len(await get_served_chats())
+@nexichat.on_cmd(["start", "starts"])
+async def شروع(_, m: Message):
+    تعداد_کاربران = len(await get_served_users())
+    تعداد_چت‌ها = len(await get_served_chats())
     if m.chat.type == ChatType.PRIVATE:
-        accha = await m.reply_text(
+        پیام = await m.reply_text(
             text=random.choice(EMOJIOS),
         )
         await asyncio.sleep(0.5)
         
-        # Animation text in Persian
-        animations = [
-            "**__در__**", "**__درح__**", "**__درحا__**", "**__درحال__**",
-            "**__درحال ر__**", "**__درحال را__**", "**__درحال راه__**",
-            "**__درحال راه ا__**", "**__درحال راه ان__**", "**__درحال راه اند__**",
-            "**__درحال راه اندا__**", "**__درحال راه انداز__**", "**__درحال راه اندازی__**",
-            "**__درحال راه اندازی...__**"
+        # انیمیشن شروع
+        مراحل_انیمیشن = [
+            "**__ꨄ︎ ش__**", "**__ꨄ شر__**", "**__ꨄ︎ شرو__**",
+            "**__ꨄ︎ شروع__**", "**__ꨄ شروع .__**",
+            "**__ꨄ︎ شروع ..__**", "**__ꨄ︎ شروع ...__**",
+            "**__ꨄ شروع ....__**", "**__ꨄ︎ در حال شروع.__**",
+            "**__ꨄ در حال شروع.....__**"
         ]
         
-        for animation in animations:
-            await accha.edit(animation)
+        for متن in مراحل_انیمیشن:
+            await پیام.edit(متن)
             await asyncio.sleep(0.1)
+            
+        await پیام.delete()
         
-        await accha.delete()
-        
-        umm = await m.reply_sticker(sticker=random.choice(STICKER))
-        chat_photo = BOT  
+        استیکر = await m.reply_sticker(sticker=random.choice(STICKER))
+        عکس_چت = BOT  
         if m.chat.photo:
             try:
-                userss_photo = await nexichat.download_media(m.chat.photo.big_file_id)
-                await umm.delete()
-                if userss_photo:
-                    chat_photo = userss_photo
+                عکس_کاربر = await nexichat.download_media(m.chat.photo.big_file_id)
+                await استیکر.delete()
+                if عکس_کاربر:
+                    عکس_چت = عکس_کاربر
             except AttributeError:
-                chat_photo = BOT  
+                عکس_چت = BOT  
 
-        users = len(await get_served_users())
-        chats = len(await get_served_chats())
-        await m.reply_photo(photo=chat_photo, caption=START.format(nexichat.mention or "can't mention", users, chats), reply_markup=InlineKeyboardMarkup(START_BOT))
+        تعداد_کاربران = len(await get_served_users())
+        تعداد_چت‌ها = len(await get_served_chats())
+        آپتایم, سی_پی_یو, رم, دیسک = await bot_sys_stats()
+        
+        await m.reply_photo(
+            photo=عکس_چت,
+            caption=START.format(nexichat.mention or "غیرقابل منشن", تعداد_کاربران, تعداد_چت‌ها, آپتایم),
+            reply_markup=InlineKeyboardMarkup(START_BOT)
+        )
+        
         await add_served_user(m.chat.id)
-        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(f"{m.chat.first_name}", user_id=m.chat.id)]])
-        await nexichat.send_photo(int(OWNER_ID), photo=chat_photo, caption=f"{m.from_user.mention} ʜᴀs sᴛᴀʀᴛᴇᴅ ʙᴏᴛ. \n\n**ɴᴀᴍᴇ :** {m.chat.first_name}\n**ᴜsᴇʀɴᴀᴍᴇ :** @{m.chat.username}\n**ɪᴅ :** {m.chat.id}\n\n**ᴛᴏᴛᴀʟ ᴜsᴇʀs :** {users}", reply_markup=keyboard)
+        
+        دکمه_کاربر = InlineKeyboardMarkup([[InlineKeyboardButton(f"{m.chat.first_name}", user_id=m.chat.id)]])
+        await nexichat.send_photo(
+            int(OWNER_ID),
+            photo=عکس_چت,
+            caption=f"{m.from_user.mention} ربات را شروع کرد.\n\n**نام:** {m.chat.first_name}\n**نام کاربری:** @{m.chat.username}\n**شناسه:** {m.chat.id}\n\n**تعداد کل کاربران:** {تعداد_کاربران}",
+            reply_markup=دکمه_کاربر
+        )
         
     else:
         await m.reply_photo(
             photo=random.choice(IMG),
-            caption=START.format(nexichat.mention or "can't mention", users, chats),
+            caption=GSTART.format(m.from_user.mention or "غیرقابل منشن"),
             reply_markup=InlineKeyboardMarkup(HELP_START),
         )
         await add_served_chat(m.chat.id)
 
 
 @nexichat.on_cmd("help")
-async def help(client: nexichat, m: Message):
+async def راهنما(client: nexichat, m: Message):
     if m.chat.type == ChatType.PRIVATE:
-        hmm = await m.reply_photo(
+        await m.reply_photo(
             photo=random.choice(IMG),
             caption=HELP_READ,
             reply_markup=InlineKeyboardMarkup(HELP_BTN),
@@ -221,50 +320,66 @@ async def help(client: nexichat, m: Message):
     else:
         await m.reply_photo(
             photo=random.choice(IMG),
-            caption="**برای دریافت راهنما به من پیام خصوصی بدهید!**",
+            caption="**سلام، برای دریافت راهنما به من پیام خصوصی بدهید!**",
             reply_markup=InlineKeyboardMarkup(HELP_BUTN),
         )
         await add_served_chat(m.chat.id)
 
 
-@nexichat.on_cmd("repo")
-async def repo(_, m: Message):
+@nexichat.on_cmd("rreepo")
+async def مخزن(_, m: Message):
     await m.reply_text(
         text=SOURCE_READ,
         reply_markup=InlineKeyboardMarkup(CLOSE_BTN),
         disable_web_page_preview=True,
     )
 
+
 @nexichat.on_cmd("ping")
-async def ping(_, message: Message):
-    start = datetime.now()
-    loda = await message.reply_photo(
+async def پینگ(_, message: Message):
+    شروع = datetime.now()
+    آپتایم, سی_پی_یو, رم, دیسک = await bot_sys_stats()
+    پیام = await message.reply_photo(
         photo=random.choice(IMG),
-        caption="در حال بررسی...",
+        caption="در حال بررسی پینگ...",
     )
 
-    ms = (datetime.now() - start).microseconds / 1000
-    await loda.edit_text(
-        text=f"سلام عزیزم!!\n{nexichat.name} فعال است 🥀 و با پینگ\n➥ `{ms}` میلی‌ثانیه کار می‌کند\n\n<b>|| ساخته شده با ❣️ توسط [سازنده](https://t.me/{OWNER_USERNAME}) ||</b>",
+    زمان = (datetime.now() - شروع).microseconds / 1000
+    await پیام.edit_text(
+        text=f"""سلام عزیزم!!
+{nexichat.name} ربات چت فعال است 🥀 و با پینگ زیر کار می‌کند:
+
+**➥** `{زمان}` میلی‌ثانیه
+**➲ پردازنده:** {سی_پی_یو}
+**➲ حافظه:** {رم}
+**➲ دیسک:** {دیسک}
+**➲ زمان کارکرد »** {آپتایم}
+
+<b>||**๏ ساخته شده با ❣️ توسط [موزیک سیدی ✯](https://t.me/{OWNER_USERNAME}) **||</b>""",
         reply_markup=InlineKeyboardMarkup(PNG_BTN),
     )
+    
     if message.chat.type == ChatType.PRIVATE:
         await add_served_user(message.from_user.id)
     else:
         await add_served_chat(message.chat.id)
 
-@nexichat.on_message(filters.command("stats"))
-async def stats(cli: Client, message: Message):
-    users = len(await get_served_users())
-    chats = len(await get_served_chats())
-    await message.reply_text(
-        f"""{(await cli.get_me()).mention} آمار ربات:
 
-➻ **گروه‌ها:** {chats}
-➻ **کاربران:** {users}"""
+@nexichat.on_message(filters.command("statsts"))
+async def آمار(cli: Client, message: Message):
+    تعداد_کاربران = len(await get_served_users())
+    تعداد_چت‌ها = len(await get_served_chats())
+    await message.reply_text(
+        f"""{(await cli.get_me()).mention} آمار ربات چت:
+
+➻ **چت‌ها:** {تعداد_چت‌ها}
+➻ **کاربران:** {تعداد_کاربران}"""
     )
 
 
+from pyrogram.enums import ParseMode
+
+from nexichat import nexichat
 
 
 @nexichat.on_cmd("id")
@@ -274,8 +389,11 @@ async def getid(client, message):
     message_id = message.id
     reply = message.reply_to_message
 
-    text = f"**[شناسه پیام:]({message.link})** `{message_id}`\n"
-    text += f"**[شناسه شما:](tg://user?id={your_id})** `{your_id}`\n"
+    text = f"**[ᴍᴇssᴀɢᴇ ɪᴅ:]({message.link})** `{message_id}`\n"
+    text += f"**[ʏᴏᴜʀ ɪᴅ:](tg://user?id={your_id})** `{your_id}`\n"
+
+    if not message.command:
+        message.command = message.text.split()
 
     if not message.command:
         message.command = message.text.split()
@@ -284,15 +402,42 @@ async def getid(client, message):
         try:
             split = message.text.split(None, 1)[1].strip()
             user_id = (await client.get_users(split)).id
-            text += f"**[شناسه کاربر:](tg://user?id={user_id})** `{user_id}`\n"
+            text += f"**[ᴜsᴇʀ ɪᴅ:](tg://user?id={user_id})** `{user_id}`\n"
 
         except Exception:
-            return await message.reply_text("این کاربر وجود ندارد.", quote=True)
+            return await message.reply_text("ᴛʜɪs ᴜsᴇʀ ᴅᴏᴇsɴ'ᴛ ᴇxɪsᴛ.", quote=True)
 
-    text += f"**[شناسه گروه:](https://t.me/{chat.username})** `{chat.id}`\n\n"
-    
-    
-    
+    text += f"**[ᴄʜᴀᴛ ɪᴅ:](https://t.me/{chat.username})** `{chat.id}`\n\n"
+
+    if (
+        not getattr(reply, "empty", True)
+        and not message.forward_from_chat
+        and not reply.sender_chat
+    ):
+        text += f"**[ʀᴇᴘʟɪᴇᴅ ᴍᴇssᴀɢᴇ ɪᴅ:]({reply.link})** `{reply.id}`\n"
+        text += f"**[ʀᴇᴘʟɪᴇᴅ ᴜsᴇʀ ɪᴅ:](tg://user?id={reply.from_user.id})** `{reply.from_user.id}`\n\n"
+
+    if reply and reply.forward_from_chat:
+        text += f"ᴛʜᴇ ғᴏʀᴡᴀʀᴅᴇᴅ ᴄʜᴀɴɴᴇʟ, {reply.forward_from_chat.title}, ʜᴀs ᴀɴ ɪᴅ ᴏғ `{reply.forward_from_chat.id}`\n\n"
+        print(reply.forward_from_chat)
+
+    if reply and reply.sender_chat:
+        text += f"ɪᴅ ᴏғ ᴛʜᴇ ʀᴇᴘʟɪᴇᴅ ᴄʜᴀᴛ/ᴄʜᴀɴɴᴇʟ, ɪs `{reply.sender_chat.id}`"
+        print(reply.sender_chat)
+
+    await message.reply_text(
+        text,
+        disable_web_page_preview=True,
+        parse_mode=ParseMode.DEFAULT,
+    )
+
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+AUTO_SLEEP = 5
+IS_BROADCASTING = False
+broadcast_lock = asyncio.Lock()
 
 
 @nexichat.on_message(
@@ -380,9 +525,7 @@ async def broadcast_message(client, message):
                                 )
                                 pin_count += 1
                             except Exception as e:
-                                logger.error(
-                                    f"Failed to pin message in chat {chat_id}: {e}"
-                                )
+                                continue
 
                     except FloodWait as e:
                         flood_time = int(e.value)
@@ -396,7 +539,7 @@ async def broadcast_message(client, message):
                             continue
                         await asyncio.sleep(flood_time)
                     except Exception as e:
-                        logger.error(f"Error broadcasting to chat {chat_id}: {e}")
+                        
                         continue
 
                 await message.reply_text(
@@ -432,12 +575,13 @@ async def broadcast_message(client, message):
                             continue
                         await asyncio.sleep(flood_time)
                     except Exception as e:
-                        logger.error(f"Error broadcasting to user {user_id}: {e}")
+                        
                         continue
 
                 await message.reply_text(f"**Broadcasted to {susr} users.**")
 
         finally:
             IS_BROADCASTING = False
-            
-            
+
+
+    
