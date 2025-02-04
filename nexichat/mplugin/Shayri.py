@@ -100,7 +100,8 @@ morning_shayari = [
 ]
 
 # دستورات شعر
-SHAYRI_COMMAND = ["gf", "bf", "shayri", "sari", "shari", "love"]
+# دستورات شعر و متن فارسی
+SHAYRI_COMMAND = ["gf", "bf", "shayri", "sari", "shari", "love", "شعر", "عاشقانه", "متن"]
 
 @nexichat.on_message(filters.command(SHAYRI_COMMAND))
 async def shayri(client: Client, message: Message):
@@ -110,10 +111,10 @@ async def shayri(client: Client, message: Message):
             [
                 [
                     InlineKeyboardButton(
-                        "✨پشتیبانی✨", url=f"https://t.me/+MS2tY8FN4eExZTA8"
+                        "✨گروه پشتیبانی✨", url=f"https://t.me/+MS2tY8FN4eExZTA8"
                     ),
                     InlineKeyboardButton(
-                        "✨کانال✨", url=f"https://t.me/music_rock22"
+                        "✨کانال ما✨", url=f"https://t.me/music_rock22"
                     ),
                 ]
             ]
@@ -124,7 +125,7 @@ add_buttons = InlineKeyboardMarkup(
     [
         [
             InlineKeyboardButton(
-                text="๏ مرا به گروه اضافه کنید ๏",
+                text="◈ مرا به گروه اضافه کنید ◈",
                 url=f"https://t.me/{nexichat.username}?startgroup=true",
             )
         ]
@@ -144,7 +145,7 @@ async def send_good_night():
             await nexichat.send_photo(
                 chat_id,
                 photo="https://telegra.ph//file/06649d4d0bbf4285238ee.jpg",
-                caption=f"**{shayari}**",
+                caption=f"**{shayari}**\n\n━━━━━━━━━━━━━━━━━━━━━\n◈ شب بخیر و رویاهای زیبا 🌙✨",
                 reply_markup=add_buttons,
             )
         except Exception as e:
@@ -163,7 +164,7 @@ async def send_good_morning():
             await nexichat.send_photo(
                 chat_id,
                 photo="https://telegra.ph//file/14ec9c3ff42b59867040a.jpg",
-                caption=f"**{shayari}**",
+                caption=f"**{shayari}**\n\n━━━━━━━━━━━━━━━━━━━━━\n◈ صبح بخیر و روز پر از انرژی ☀️✨",
                 reply_markup=add_buttons,
             )
         except Exception as e:
