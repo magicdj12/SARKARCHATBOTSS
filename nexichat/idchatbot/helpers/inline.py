@@ -71,7 +71,7 @@ CHATBOT_ON = [
     ],
 ]
 
-# دکمه‌های موزیک (به زودی)
+# دکمه‌های موزیک
 MUSIC_BACK_BTN = [
     [
         InlineKeyboardButton(text="به زودی", callback_data=f"soom"),
