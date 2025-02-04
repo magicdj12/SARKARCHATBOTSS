@@ -32,7 +32,7 @@ async def gemini_handler(client, message):
         pass  
         
     try:
-        base_url = "https://chatwithai.codesearch.workers.dev/?chat="
+        base_url = "https://open.wiki-api.ir/apis-2/ChatGPT4/?chat="
         response = requests.get(base_url + user_input)
         if response and response.text.strip():
             await message.reply_text(response.text.strip(), quote=True)
